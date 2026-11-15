@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Matabacterias — Desafío de 10 segundos</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: radial-gradient(circle at top, #20352a, #101510 65%);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+      user-select: none;
+    }
+    .contenedor {
+      width: min(100%, 520px);
+      background: #1b241e;
+      border: 1px solid #365342;
+      border-radius: 20px;
+      padding: 28px;
+      text-align: center;
+      box-shadow: 0 18px 55px #0009;
+    }
+    h1 { color: #68f0a0; margin: 0 0 8px; font-size: clamp(2rem, 7vw, 2.7rem); }
+    .subtitulo { color: #c2d1c7; margin: 0 0 16px; }
+    .bacteria { font-size: 76px; margin: 12px 0; filter: drop-shadow(0 5px 8px #0006); }
+    .record {
+      background: #332b16; border: 1px solid #8b7025;
+      border-radius: 12px; padding: 12px; margin: 16px 0 20px;
+    }
+    .record strong { color: #ffd45c; display: block; font-size: 1.5rem; margin-top: 3px; }
+    .estadisticas { display: flex; gap: 10px; margin: 18px 0; }
+    .dato { flex: 1; background: #29352d; border-radius: 12px; padding: 13px 5px; }
+    .valor { display: block; font-size: clamp(1.7rem, 6vw, 2.2rem); font-weight: 800; }
+    .etiqueta { display: block; color: #b7c5bb; font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; }
+    .tecla {
+      display: inline-block; min-width: 220px; margin: 12px 0;
+      padding: 14px 35px; border: 3px solid #607267; border-bottom-width: 8px;
+      border-radius: 11px; background: #34443a; color: white;
+      font-size: 1.15rem; font-weight: 800; transition: .05s;
+    }
+    .tecla.presionada { transform: translateY(4px); border-bottom-width: 4px; background: #55df8d; color: #102016; border-color: #31ad65; }
+    #mensaje { color: #ffe36b; min-height: 48px; line-height: 1.45; margin: 12px 0; }
+    .resultado {
+      display: none; background: #153c27; border: 1px solid #4bd984;
+      border-radius: 12px; padding: 15px; margin: 14px 0; line-height: 1.65;
+    }
+    .resultado h2 { color: #70f3a4; margin: 0 0 8px; font-size: 1.25rem; }
+    .resultado strong { color: #ffe36b; }
+    button {
+      display: none; margin: 14px auto 0; padding: 13px 25px;
+      border: 0; border-radius: 9px; background: #58e68f; color: #102016;
+      font-size: 1rem; font-weight: 800; cursor: pointer;
+    }
+    button:hover { background: #83f5ae; }
+    .ayuda { color: #91a397; font-size: .8rem; margin: 18px 0 0; }
+    @media (max-width: 390px) {
+      .contenedor { padding: 20px 15px; }
+      .estadisticas { gap: 6px; }
+      .dato { padding: 11px 3px; }
+      .etiqueta { font-size: .65rem; }
+    }
+  </style>
+</head>
+<body>
+  <main class="contenedor">
+    <h1>🦠 Matabacterias</h1>
+    <p class="subtitulo">¡Elimina tantas bacterias como puedas en 10 segundos!</p>
+    <div class="bacteria" aria-hidden="true">🦠</div>
+
+    <section class="record">
+      🏆 Récord personal
+      <strong id="record">0 bacterias</strong>
+    </section>
+
+    <section class="estadisticas" aria-label="Estadísticas de la partida">
+      <div class="dato"><span class="valor" id="tiempo">10.0</span><span class="etiqueta">Segundos</span></div>
+      <div class="dato"><span class="valor" id="contador">0</span><span class="etiqueta">Bacterias</span></div>
+      <div class="dato"><span class="valor" id="cps">0.0</span><span class="etiqueta">Por segundo</span></div>
+    </section>
+
+    <div class="tecla" id="tecla">BARRA ESPACIADORA</div>
+    <p id="mensaje">Presiona la barra espaciadora para comenzar.</p>
+
+    <section class="resultado" id="resultado" aria-live="polite">
+      <h2>🧪 ¡Desafío terminado!</h2>
+      <p id="resultadoBacterias"></p>
+      <p id="resultadoCps"></p>
+      <p id="nuevoRecord"></p>
+    </section>
+
+    <button id="btn-reiniciar" type="button">Jugar de nuevo</button>
+    <p class="ayuda">Pulsa y suelta la barra espaciadora lo más rápido posible. Cada pulsación elimina una bacteria.</p>
+  </main>
+
+  <script>
+    let contador = 0;
+    let juegoActivo = false;
+    let juegoTerminado = false;
+    let tiempoInicio = 0;
+    let intervalo = null;
+    const DURACION = 10000;
+
+    const $ = id => document.getElementById(id);
+    const elTiempo = $('tiempo');
+    const elContador = $('contador');
+    const elCps = $('cps');
+    const elMensaje = $('mensaje');
+    const elTecla = $('tecla');
+    const elRecord = $('record');
+    const resultado = $('resultado');
+    const btnReiniciar = $('btn-reiniciar');
+
+    let recordPersonal = Number(localStorage.getItem('recordMatabacterias')) || 0;
+    mostrarRecord();
+
+    function mostrarRecord() {
+      elRecord.textContent = `${recordPersonal} bacterias`;
+    }
+
+    window.addEventListener('keydown', e => {
+      if (e.code !== 'Space') return;
+      e.preventDefault();
+      if (e.repeat || juegoTerminado) return;
+
+      elTecla.classList.add('presionada');
+      if (!juegoActivo) iniciarJuego();
+
+      // Verifica el tiempo exacto para no aceptar pulsaciones posteriores al límite.
+      if (Date.now() - tiempoInicio < DURACION) {
+        contador++;
+        elContador.textContent = contador;
+        actualizarCps();
+      }
+    });
+
+    window.addEventListener('keyup', e => {
+      if (e.code === 'Space') elTecla.classList.remove('presionada');
+    });
+
+    window.addEventListener('blur', () => elTecla.classList.remove('presionada'));
+
+    function iniciarJuego() {
+      juegoActivo = true;
+      tiempoInicio = Date.now();
+      elMensaje.textContent = '¡Rápido! ¡Mata todas las bacterias que puedas!';
+      intervalo = setInterval(actualizarTiempo, 20);
+    }
+
+    function actualizarTiempo() {
+      const transcurrido = Date.now() - tiempoInicio;
+      const restante = Math.max(0, DURACION - transcurrido);
+      elTiempo.textContent = (restante / 1000).toFixed(1);
+      actualizarCps();
+      if (restante <= 0) finalizarJuego();
+    }
+
+    function actualizarCps() {
+      if (!juegoActivo) return;
+      const transcurrido = Math.max(0.001, (Date.now() - tiempoInicio) / 1000);
+      elCps.textContent = (contador / transcurrido).toFixed(1);
+    }
+
+    function finalizarJuego() {
+      if (juegoTerminado) return;
+      clearInterval(intervalo);
+      juegoActivo = false;
+      juegoTerminado = true;
+      elTecla.classList.remove('presionada');
+      elTiempo.textContent = '0.0';
+
+      const cps = (contador / 10).toFixed(1);
+      elCps.textContent = cps;
+      $('resultadoBacterias').innerHTML =
+        `Mataste <strong>${contador}</strong> bacterias en 10 segundos.`;
+      $('resultadoCps').innerHTML =
+        `También mataste <strong>${cps}</strong> bacterias por segundo.`;
+
+      if (contador > recordPersonal) {
+        recordPersonal = contador;
+        localStorage.setItem('recordMatabacterias', String(recordPersonal));
+        $('nuevoRecord').textContent = '🏆 ¡NUEVO RÉCORD PERSONAL!';
+        $('nuevoRecord').style.color = '#ffd45c';
+      } else {
+        $('nuevoRecord').textContent = `Tu récord personal sigue siendo de ${recordPersonal} bacterias.`;
+        $('nuevoRecord').style.color = '#fff';
+      }
+
+      mostrarRecord();
+      elMensaje.textContent = '¡Se acabó el tiempo!';
+      resultado.style.display = 'block';
+      btnReiniciar.style.display = 'inline-block';
+    }
+
+    function reiniciarJuego() {
+      clearInterval(intervalo);
+      contador = 0;
+      juegoActivo = false;
+      juegoTerminado = false;
+      tiempoInicio = 0;
+      elTiempo.textContent = '10.0';
+      elContador.textContent = '0';
+      elCps.textContent = '0.0';
+      elMensaje.textContent = 'Presiona la barra espaciadora para comenzar.';
+      elTecla.classList.remove('presionada');
+      resultado.style.display = 'none';
+      btnReiniciar.style.display = 'none';
+    }
+
+    btnReiniciar.addEventListener('click', reiniciarJuego);
+  </script>
+</body>
+</html>
